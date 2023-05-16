@@ -392,7 +392,7 @@ class Irp(KernelObject):
         ios = IoStackLocation(emu=emu)
         ios.write_back()
 
-        self.object.Tail.Overlay.CurrentStackLocation = ios.address + ios.sizeof()
+        self.object.Tail.Overlay.CurrentStackLocation = ios.address #+ ios.sizeof()
 
         self.stack_locations.append(ios)
 
@@ -523,6 +523,7 @@ class Process(KernelObject):
         self.name = name
         self.base = base
         self.pid = self.get_id()
+        self.object.UniqueProcessId = self.pid
         self.modules = user_modules
         self.threads = []
         self.console = None
@@ -549,6 +550,8 @@ class Process(KernelObject):
 
         if pe and pe.OPTIONAL_HEADER.Subsystem & ddk.WINDOWS_CONSOLE:
             self.alloc_console()
+
+        self.write_back()
 
     def get_peb(self):
         return self.peb

@@ -523,6 +523,25 @@ class Ntoskrnl(api.ApiHandler):
 
         return nts
 
+    @apihook('swprintf_s', argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
+    def swprintf_s(self, emu, argv, ctx={}):
+        buf, _count, fmt = emu.get_func_argv(_arch.CALL_CONV_CDECL, 3)
+    
+        fmt_str = self.read_mem_string(fmt, 2)
+        fmt_cnt = self.get_va_arg_count(fmt_str)
+
+        if not fmt_cnt:
+            self.write_wide_string(fin, buf)
+            return len(fin)
+        
+        vargs = emu.get_func_argv(_arch.CALL_CONV_CDECL, 3 + fmt_cnt)[3:]
+        fin = self.do_str_format(fmt_str, vargs)
+
+        self.write_wide_string(fin, buf)
+        argv.clear()
+        argv.append(fin)
+        return len(fin)
+
     @apihook('MmIsAddressValid', argc=1)
     def MmIsAddressValid(self, emu, argv, ctx={}):
         """
@@ -2423,6 +2442,11 @@ class Ntoskrnl(api.ApiHandler):
         p = emu.get_current_process()
         return p.address
 
+    @apihook('PsGetCurrentProcessId', argc=0)
+    def PsGetCurrentProcessId(self, emu, argv, ctx={}):
+        p = emu.get_current_process()
+        return p.id
+
     @apihook('NtSetInformationThread', argc=4)
     def NtSetInformationThread(self, emu, argv, ctx={}):
         """
@@ -3057,6 +3081,39 @@ class Ntoskrnl(api.ApiHandler):
 
         return ddk.STATUS_SUCCESS
 
+    @apihook('ZwOpenSection', argc=3)
+    def ZwOpenSection(self, emu, argv, ctx={}):
+        # TODO: No idea if this works at all.
+        (SectionHandle, DesiredAccess, ObjectAttributes) = argv
+
+        fman = emu.get_file_manager()
+
+        if not SectionHandle:
+            return ddk.STATUS_INVALID_PARAMETER
+        
+        name = None
+
+        if ObjectAttributes:
+            oa = self.win.OBJECT_ATTRIBUTES(emu.get_ptr_size())
+            oa = self.mem_cast(oa, ObjectAttributes)
+            if oa.ObjectName:
+                name = self.read_unicode_string(oa.ObjectName)
+                argv[2] = name
+
+        if not name:
+            return ddk.STATUS_OBJECT_NAME_NOT_FOUND
+        
+        mapping = fman.get_mapping_from_name(name)
+        if not mapping:
+            return ddk.STATUS_OBJECT_NAME_NOT_FOUND
+        
+        hmap = mapping.get_handle()
+        self.mem_write(SectionHandle, hmap.to_bytes(self.get_ptr_size(), byteorder='little'))
+        argv[0] = hmap
+
+        return ddk.STATUS_SUCCESS
+
+
     @apihook('ZwUnmapViewOfSection', argc=2)
     def ZwUnmapViewOfSection(self, emu, argv, ctx={}):
         """
@@ -3067,7 +3124,7 @@ class Ntoskrnl(api.ApiHandler):
         """
         ProcessHandle, BaseAddress = argv
         return 0
-
+        
     @apihook('ZwMapViewOfSection', argc=10)
     def ZwMapViewOfSection(self, emu, argv, ctx={}):
         """

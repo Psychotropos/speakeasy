@@ -258,7 +258,9 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
 
             if p.name.lower() == 'system':
                 p.pid = 4
+                p.object.UniqueProcessId = 4
                 p.path = 'System'
+                p.write_back()
 
             if not p.pid:
                 p.pid = self.om.new_id()
@@ -555,6 +557,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
 
                 if not func_addr:
                     continue
+                print(f'Going to run MJ func {i} at {hex(func_addr)}')
                 break
 
         if len(self.delayed_runs):

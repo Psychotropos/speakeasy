@@ -166,7 +166,9 @@ class ETHREAD(EmuStruct):
 class EPROCESS(EmuStruct):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
-        self.Data = ct.c_uint8 * 4096
+        self.Pad1 = ct.c_uint8 * 0x180
+        self.UniqueProcessId = ct.c_uint64
+        self.Pad2 = ct.c_uint8 * 3704
 
 
 class KEVENT(EmuStruct):
